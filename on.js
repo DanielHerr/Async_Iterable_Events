@@ -13,7 +13,7 @@ EventTarget.prototype.on = function(events = [] || "", options = {}, listener) {
   function newlistener(...inputs) {
    return(listener.apply(this, inputs))
   }
-		newlistener.remove = function() {
+  newlistener.remove = function() {
    target.removeEventListener(this.event, newlistener, this.options)
    target.listeners[this.event].splice(target.listeners[this.event].indexOf(newlistener), 1)
    if(target.listeners[this.event].length == 0) {
