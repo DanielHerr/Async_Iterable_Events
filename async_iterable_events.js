@@ -1,56 +1,54 @@
 "use strict"
 
-EventTarget.prototype.on = function(event = [] || "", options = {}, listener) {
+EventTarget.prototype.on = function(events = "" || [], options = {}, callback) {
  let target = this
- if(listener == undefined && typeof(options) == "function") {
-  listener = options
+ if(typeof(options) == "function") {
+  callback = options
   options = {}
  }
- if(typeof(event) == "string") {
-  let promise
+ if(typeof(events) == "string") {
+  events = [ events ]
+ }
+ let resolver, iterator
+ let resolvers = [], results = []
+ let removed = false
+ function listener(value) {
+  if(resolver) {
+   resolver(value)
+  }
+  if(resolvers.length) {
+   resolvers.shift()({ done: false, value })
+  } else {
+   results.push(value)
+  }
   if(options.once) {
-   if(listener == null) {
-    promise = new Promise(function(resolve) {
-     listener = resolve
-    })
-   } else {
-    let listenersource = listener.toString()
-    listener = new Proxy(listener, {
-     apply(target, that, inputs) {
-      listener.remove()
-      return(Reflect.apply(target, that, inputs))
-    } })
-    listener.toString = function() {
-     return(listenersource)
-  } } }
-  listener.target = target
-  listener.event = event
-  listener.options = options
-  listener.remove = function() {
-   target.removeEventListener(event, listener, options)
-   target.listeners[event].splice(target.listeners[event].indexOf(listener), 1)
-   if(target.listeners[event].length == 0) {
-    delete(target.listeners[event])
-  } }
+   iterator.return()
+  }
+  if(callback) {
+   callback.call(target, value)
+ } }
+ for(let event of events) {
   target.addEventListener(event, listener, options)
-  if(target.listeners == null) {
-   target.listeners = {}
-  }
-  if(target.listeners[event] == null) {
-   target.listeners[event] = []
-  }
-  target.listeners[event].push(listener)
-  return(promise || listener)
- } else {
-  let events = event
-  let listeners = []
-  for(let event of events) {
-   let listenersource = listener.toString()
-   let newlistener = new Proxy(listener, {})
-   newlistener.toString = function() {
-    return(listenersource)
+ }
+ return(Object.assign(new Promise(function(resolve) {
+  resolver = resolve
+ }), iterator = {
+  async next() {
+   if(results.length) {
+    return({ done: false, value: results.shift() })
+   } else if(removed) {
+    return({ done: true, value: undefined })
+   } else {
+    return(new Promise(function(resolve) {
+     resolvers.push(resolve)
+  })) } },
+  async return() {
+   removed = true
+   for(let event of events) {
+    target.removeEventListener(event, listener, options)
    }
-   listeners.push(target.on(event, options, newlistener))
-  }
-  return(listeners)
-} }
+   return({ done: true, value: undefined })
+  },
+  [Symbol.asyncIterator]() {
+   return(this)
+} })) }

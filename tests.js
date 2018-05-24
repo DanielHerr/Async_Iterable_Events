@@ -1,82 +1,85 @@
 "use strict"
 
-test("returns listener", function() {
- let target = document.createTextNode("")
- let result = target.on("test", function() { })
- if(typeof(result) != "function") {
-  throw("should be a function but is " + result)
+test("returns promise", function() {
+ let promise = new EventTarget().on("test", { once: true })
+ if(typeof(promise.then) != "function" || typeof(promise.catch) != "function") {
+  throw("result should be a promise but is " + promise)
 } })
 
-test("listener reference", function() {
- let target = document.createTextNode("")
- target.on("test", function() { })
- if(target.listeners.test.length != 1) {
-  throw("target listeners should include 1 function but is " + target.listeners.test)
+test("returns async iterator", function() {
+ let iterator = new EventTarget().on("test")
+ if(typeof(iterator.next) != "function" || typeof(iterator.return) != "function") {
+  throw("result should be an async iterator but is " + iterator)
 } })
 
-test("adds listener", function(pass, fail) {
- let target = document.createTextNode("")
+test("promise single event dispatch", async function() {
+ let target = new EventTarget()
+ let promise = target.on("test")
+ target.dispatchEvent(new CustomEvent("test", { detail: 1 }))
+ let result = await(promise)
+ if(result.detail != 1) {
+  throw("result should be event object with detail of 1 but is " + result)
+} })
+
+test("async iterator single event dispatch", async function() {
+ let target = new EventTarget()
+ let promise = target.on("test").next()
+ target.dispatchEvent(new CustomEvent("test", { detail: 1 }))
+ let result = (await(promise)).value
+ if(result.detail != 1) {
+  throw("result should be event object with detail of 1 but is " + result)
+} })
+
+test("async iterator multiple event dispatch", async function() {
+ let target = new EventTarget()
+ let iterator = target.on("test")
+ target.dispatchEvent(new CustomEvent("test", { detail: 1 }))
+ target.dispatchEvent(new CustomEvent("test", { detail: 2 }))
+ let result1 = (await(iterator.next())).value
+ let result2 = (await(iterator.next())).value
+ if(result1.detail != 1 || result2.detail != 2) {
+  throw("results should be events with details of 1 and 2 but are " + result1, result2)
+} })
+
+test("acync iterator once option multiple dispatch", async function() {
+ let target = new EventTarget()
+ let iterator = target.on("test", { once: true })
+ target.dispatchEvent(new CustomEvent("test", { detail: 1 }))
+ target.dispatchEvent(new CustomEvent("test", { detail: 2 }))
+ let result1 = (await(iterator.next())).value
+ let result2 = (await(iterator.next())).value
+ if(result1.detail != 1 || result2 != null) {
+  throw("results should be event object and undefined but are " + result1, result2)
+} })
+
+test("async iterator multiple event types", async function() {
+ let target = new EventTarget()
+ let iterator = target.on([ "test1", "test2" ])
+ target.dispatchEvent(new CustomEvent("test1", { detail: 1 }))
+ target.dispatchEvent(new CustomEvent("test2", { detail: 2 }))
+ let result1 = (await(iterator.next())).value
+ let result2 = (await(iterator.next())).value
+ if(result1.type != "test1" || result2.type != "test2") {
+  throw("results should be test1 and test2 event objects but are " + result1, result2)
+} })
+
+test("async iterator previous event queue", async function() {
+ let target = new EventTarget()
+ let iterator = target.on("test")
+ target.dispatchEvent(new CustomEvent("test", { detail: 1 }))
+ let result = (await(iterator.next())).value
+ if(result.detail != 1) {
+  throw("result should be event object with detail of 1 but is " + result)
+} })
+
+test("callback function multiple dispatch", function(pass, fail) {
+ let target = new EventTarget()
  target.on("test", function(event) {
-  if(event) {
+  if(event.detail == 1 || event.detail == 2) {
    pass()
   } else {
-   fail("event should be an object but is " + event)
+   fail("result should be an event object with detail of 1 or 2 but is " + event)
  } })
- target.dispatchEvent(new Event("test"))
-})
-
-test("removes listener", function(pass, fail) {
- let target = document.createTextNode("")
- let result = target.on("test", function(event) {
-  fail("should remove listener but was called with " + event)
- })
- result.remove()
- target.dispatchEvent(new Event("test"))
- if(target.listeners.test == null) {
-  pass()
- } else {
-  fail("should remove reference but it is " + target.listeners.test)
-} })
-
-test("multiple events", function(pass, fail) {
- let target = document.createTextNode("")
- let first = true
- target.on([ "test1", "test2" ], function(event) {
-  if(first) {
-   first = false
-  } else {
-   pass()
- } })
- target.dispatchEvent(new Event("test1"))
- target.dispatchEvent(new Event("test2"))
-})
-
-test("once option", function(pass, fail) {
- let target = document.createTextNode("")
- let first = true
- target.on("test", { once: true }, function(event) {
-  if(first) {
-   first = false
-   pass()
-  } else {
-   fail("should run once but ran twice with " + event)
- } })
- target.dispatchEvent(new Event("test"))
- target.dispatchEvent(new Event("test"))
-})
-
-test("promise if no listener and once", function(pass, fail) {
- let target = document.createTextNode("")
- let result = target.on("test", { once: true })
- result.then(function(event) {
-  if(event) {
-   pass()
-  } else {
-   fail("should resolve with event but event is " + event)
- } })
- target.dispatchEvent(new Event("test"))
-})
-
-test("push stream if no listener and not once", function() {
- throw("Planned for when streams release.")
+ target.dispatchEvent(new CustomEvent("test", { detail: 1 }))
+ target.dispatchEvent(new CustomEvent("test", { detail: 2 }))
 })
